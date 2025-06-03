@@ -1,3 +1,4 @@
+# 반드시 이 코드로 교체해야 합니다.
 # src/datasets/ffpp_dataset.py
 
 import os
@@ -14,51 +15,66 @@ from src.utils.transforms import get_ffpp_transforms
 
 class FFPPFrameDataset(Dataset):
     """
-    FaceForensics++ 프레임 기반 데이터셋.
-    
-    - 사전에 FF++ 영상을 프레임 단위로 추출해둔 디렉터리(예: data/processed/c23/train/Deepfakes/*.jpg) 구조에서
-      이미지 파일과 라벨(real=0, fake=1)을 읽어와 Dataset을 구성합니다.
-    - split 인자로 "train", "val", "test"를 받고, 각 split 폴더 아래에 있는 조작 종류(manipulation)별 서브폴더를 순회합니다.
-    - 이미지 당 하나의 레이블을 반환하며, get_ffpp_transforms 함수를 사용해 Resize→ToTensor→Normalize 전처리를 적용합니다.
+    FaceForensics++ 프레임 기반 데이터셋 (alltype 구조).
+
+    - dataset_root/version/alltype/ 하위에 조작 타입(Deepfakes, FaceSwap, Face2Face, NeuralTextures, real) 폴더가 있음.
+    - 각 조작 타입 폴더 안에는 video_id 별 하위 폴더가 있고, 그 안에 해당 비디오의 이미지(프레임)들이 있음.
+    - Deepfakes, FaceSwap → fake (label=1)
+      Face2Face, NeuralTextures, real → real (label=0)
     """
 
-    def __init__(self, config_path: str, split: str = "train"):
+    def __init__(self, config_path: str):
         """
         Args:
-            config_path (str): YAML 설정 파일 경로 (예: "configs/ffpp_c23.yaml").
-            split (str): 데이터셋 분할명. "train", "val", "test" 중 하나.
+            config_path (str): 예) "configs/ffpp_c23.yaml"
         """
-        # 1) YAML 설정 로드
+        # 1) 설정 로드
         with open(config_path, "r") as f:
             cfg = yaml.safe_load(f)
-        self.dataset_root = Path(cfg["dataset_root"]) / cfg["version"]
-        self.split = split
+
+        # “alltype” 폴더 아래 전체 이미지 로드
+        self.dataset_root = Path(cfg["dataset_root"]) / cfg["version"] / "alltype"
+        if not self.dataset_root.exists():
+            raise FileNotFoundError(f"Directory not found: {self.dataset_root}")
+
+        # 2) 전처리 파이프라인
         self.transform = get_ffpp_transforms(cfg["input_size"])
 
-        # 2) split 디렉터리(예: /path/to/FaceForensicspp/c23/train) 확인
-        split_dir = self.dataset_root / split
-        if not split_dir.exists():
-            raise FileNotFoundError(f"Split directory not found: {split_dir}")
+        # 3) 레이블 정의
+        self.fake_types = {"Deepfakes", "FaceSwap"}
+        self.real_types = {"Face2Face", "NeuralTextures", "real"}
 
-        # 3) 이미지 경로와 라벨(0: real, 1: fake) 수집
-        self.image_paths = []
-        self.labels = []
+        # 4) 이미지 경로 + 라벨 수집
+        self.image_paths = []  # 프레임 이미지 파일 경로 목록 (Path 객체)
+        self.labels = []       # 각 이미지의 레이블 (0: real, 1: fake)
 
-        # manipulation 폴더들: real/, Deepfakes/, FaceSwap/ 등
-        for manipulation in os.listdir(split_dir):
-            class_dir = split_dir / manipulation
-            if not class_dir.is_dir():
+        for manipulation in os.listdir(self.dataset_root):
+            manipulation_dir = self.dataset_root / manipulation
+            if not manipulation_dir.is_dir():
                 continue
 
-            # 'real' 폴더는 라벨 0, 나머지는 모두 가짜(fake) 라벨 1 처리
-            label = 0 if manipulation.lower() == "real" else 1
+            # 조작 타입별 레이블 결정
+            if manipulation in self.fake_types:
+                label = 1
+            elif manipulation in self.real_types:
+                label = 0
+            else:
+                print(f"Warning: Unknown folder '{manipulation}', skipping.")
+                continue
 
-            # 클래스 폴더 내 모든 .jpg 파일을 순회
-            for img_file in class_dir.glob("*.jpg"):
-                self.image_paths.append(img_file)
-                self.labels.append(label)
+            # 각 조작 타입 폴더 아래 video_id별 폴더 순회
+            for video_id in os.listdir(manipulation_dir):
+                video_dir = manipulation_dir / video_id
+                if not video_dir.is_dir():
+                    continue
 
-        # 4) 데이터 섞기(shuffle)
+                # video_dir 안의 모든 .jpg/.png 파일 수집
+                for ext in ("*.jpg", "*.png"):
+                    for img_file in video_dir.glob(ext):
+                        self.image_paths.append(img_file)
+                        self.labels.append(label)
+
+        # 5) 데이터 섞기
         combined = list(zip(self.image_paths, self.labels))
         random.shuffle(combined)
         self.image_paths, self.labels = zip(*combined)
@@ -66,20 +82,16 @@ class FFPPFrameDataset(Dataset):
     def __len__(self):
         return len(self.image_paths)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         """
         Args:
             idx (int): 인덱스
         Returns:
-            image_tensor (Tensor): 전처리가 적용된 이미지 텐서, 크기 [3×H×W]
+            image (Tensor): 전처리된 이미지 텐서
             label (int): 0 또는 1
         """
         img_path = self.image_paths[idx]
         label = self.labels[idx]
-
-        # PIL.Image로 이미지를 읽고 RGB로 변환
         image = Image.open(img_path).convert("RGB")
-        # 정의된 transform (Resize→ToTensor→Normalize) 적용
         image = self.transform(image)
-
         return image, label

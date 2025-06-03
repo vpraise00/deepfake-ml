@@ -1,6 +1,6 @@
 # configs/ffpp_c23.yaml
-dataset_root: "/path/to/FaceForensicspp"   # 실제 데이터가 저장된 최상위 디렉터리 (변경 필요)
-version: "c23"                             # FF++ HQ (c23)
+dataset_root: "D:/My Project/Deepfake/df_train/data/FaceForensicspp_RECCE"   # 실제 데이터가 저장된 최상위 디렉터리 (변경 필요)
+version: "c23_frames"                             # FF++ HQ (c23)
 
 input_size: 224
 batch_size: 32
