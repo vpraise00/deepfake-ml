@@ -1,0 +1,28 @@
+# configs/ffpp_c23.yaml
+dataset_root: "/path/to/FaceForensicspp"   # 실제 데이터가 저장된 최상위 디렉터리 (변경 필요)
+version: "c23"                             # FF++ HQ (c23)
+
+input_size: 224
+batch_size: 32
+num_workers: 4
+
+model:
+  backbone: "vit_base_patch16_224"         # timm 모델 이름
+  adapter_dim: 128                         # 어댑터 내부 차원
+  num_classes: 2                           # real vs fake
+
+optimizer:
+  type: "adamw"
+  lr: 1e-4
+  weight_decay: 1e-5
+
+scheduler:
+  type: "cosine"
+  T_max: 50
+
+training:
+  epochs: 50
+  k_folds: 5       # Train/Val K-Fold 분할 수
+
+output_dir: "outputs/checkpoints/ffpp_c23"
+log_dir:    "outputs/logs/ffpp_c23"
