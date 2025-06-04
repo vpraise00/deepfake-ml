@@ -96,11 +96,11 @@ def main(config_path: str):
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.AdamW(
             model.parameters(),
-            lr=cfg["optimizer"]["lr"],
-            weight_decay=cfg["optimizer"]["weight_decay"]
+            lr=float(cfg["optimizer"]["lr"]),
+            weight_decay=float(cfg["optimizer"]["weight_decay"])
         )
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=cfg["scheduler"]["T_max"]
+            optimizer, T_max=int(cfg["scheduler"]["T_max"])
         )
 
         # (B) Fold별 체크포인트/로그 디렉터리 생성
