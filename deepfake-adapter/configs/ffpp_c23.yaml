@@ -21,7 +21,7 @@ scheduler:
   T_max: 50
 
 training:
-  epochs: 50
+  epochs: 15
   k_folds: 5       # Train/Val K-Fold 분할 수
 
 output_dir: "outputs/checkpoints/ffpp_c23"
